@@ -10,7 +10,9 @@ import sys
 import textwrap
 import zipfile
 from functools import partial
+from importlib.util import source_hash
 from pathlib import Path
+from time import sleep
 from typing import cast
 from typing import Dict
 from typing import Generator
@@ -1039,12 +1041,14 @@ class TestAssertionRewriteHookDetails:
         state = AssertionState(config, "rewrite")
         tmp_path.joinpath("source.py").touch()
         source_path = str(tmp_path)
+        source_bytes = tmp_path.joinpath("source.py").read_bytes()
         pycpath = tmp_path.joinpath("pyc")
         co = compile("1", "f.py", "single")
-        assert _write_pyc(state, co, os.stat(source_path), pycpath)
+        hash: bytes = source_hash(source_bytes)  # type: ignore[assignment]
+        assert _write_pyc(state, co, os.stat(source_path), hash, pycpath)
 
         with mock.patch.object(os, "replace", side_effect=OSError):
-            assert not _write_pyc(state, co, os.stat(source_path), pycpath)
+            assert not _write_pyc(state, co, os.stat(source_path), hash, pycpath)
 
     def test_resources_provider_for_loader(self, pytester: Pytester) -> None:
         """
@@ -1116,8 +1120,15 @@ class TestAssertionRewriteHookDetails:
 
         fn.write_text("def test(): assert True", encoding="utf-8")
 
-        source_stat, co = _rewrite_test(fn, config)
-        _write_pyc(state, co, source_stat, pyc)
+        source_stat, hash, co = _rewrite_test(fn, config)
+        _write_pyc(state, co, source_stat, hash, pyc)
+        assert _read_pyc(fn, pyc, state.trace) is not None
+
+        # pyc read should still work if only the mtime changed
+        # Fallback to hash comparison
+        sleep(0.1)
+        fn.touch()
+        assert source_stat.st_mtime != os.stat(fn).st_mtime
         assert _read_pyc(fn, pyc, state.trace) is not None
 
     def test_read_pyc_more_invalid(self, tmp_path: Path) -> None:
@@ -1138,11 +1149,13 @@ class TestAssertionRewriteHookDetails:
         os.utime(source, (mtime_int, mtime_int))
 
         size = len(source_bytes).to_bytes(4, "little")
+        hash: bytes = source_hash(source_bytes)  # type: ignore[assignment]
+        hash = hash[:8]
 
         code = marshal.dumps(compile(source_bytes, str(source), "exec"))
 
         # Good header.
-        pyc.write_bytes(magic + flags + mtime + size + code)
+        pyc.write_bytes(magic + flags + mtime + size + hash + code)
         assert _read_pyc(source, pyc, print) is not None
 
         # Too short.
@@ -1150,19 +1163,19 @@ class TestAssertionRewriteHookDetails:
         assert _read_pyc(source, pyc, print) is None
 
         # Bad magic.
-        pyc.write_bytes(b"\x12\x34\x56\x78" + flags + mtime + size + code)
+        pyc.write_bytes(b"\x12\x34\x56\x78" + flags + mtime + size + hash + code)
         assert _read_pyc(source, pyc, print) is None
 
         # Unsupported flags.
-        pyc.write_bytes(magic + b"\x00\xff\x00\x00" + mtime + size + code)
-        assert _read_pyc(source, pyc, print) is None
-
-        # Bad mtime.
-        pyc.write_bytes(magic + flags + b"\x58\x3d\xb0\x5f" + size + code)
+        pyc.write_bytes(magic + b"\x00\xff\x00\x00" + mtime + size + hash + code)
         assert _read_pyc(source, pyc, print) is None
 
         # Bad size.
-        pyc.write_bytes(magic + flags + mtime + b"\x99\x00\x00\x00" + code)
+        pyc.write_bytes(magic + flags + mtime + b"\x99\x00\x00\x00" + hash + code)
+        assert _read_pyc(source, pyc, print) is None
+
+        # Bad mtime + bad hash.
+        pyc.write_bytes(magic + flags + b"\x58\x3d\xb0\x5f" + size + b"\x00" * 8 + code)
         assert _read_pyc(source, pyc, print) is None
 
     def test_reload_is_same_and_reloads(self, pytester: Pytester) -> None:
