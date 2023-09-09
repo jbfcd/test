@@ -1044,6 +1044,7 @@ class TestAssertionRewriteHookDetails:
         source_bytes = tmp_path.joinpath("source.py").read_bytes()
         pycpath = tmp_path.joinpath("pyc")
         co = compile("1", "f.py", "single")
+        # source_hash returns bytes not int: https://github.com/python/typeshed/pull/10686
         hash: bytes = source_hash(source_bytes)  # type: ignore[assignment]
         assert _write_pyc(state, co, os.stat(source_path), hash, pycpath)
 
@@ -1149,6 +1150,7 @@ class TestAssertionRewriteHookDetails:
         os.utime(source, (mtime_int, mtime_int))
 
         size = len(source_bytes).to_bytes(4, "little")
+        # source_hash returns bytes not int: https://github.com/python/typeshed/pull/10686
         hash: bytes = source_hash(source_bytes)  # type: ignore[assignment]
         hash = hash[:8]
 

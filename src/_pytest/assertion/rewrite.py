@@ -342,6 +342,7 @@ def _rewrite_test(
     """Read and rewrite *fn* and return the code object."""
     stat = os.stat(fn)
     source = fn.read_bytes()
+    # source_hash returns bytes not int: https://github.com/python/typeshed/pull/10686
     source_hash: bytes = importlib.util.source_hash(source)  # type: ignore[assignment]
     strfn = str(fn)
     tree = ast.parse(source, filename=strfn)
@@ -388,6 +389,7 @@ def _read_pyc(
         if int.from_bytes(mtime_data, "little") != mtime & 0xFFFFFFFF:
             trace("_read_pyc(%s): out of date" % source)
             hash = data[16:24]
+            # source_hash returns bytes not int: https://github.com/python/typeshed/pull/10686
             source_hash: bytes = importlib.util.source_hash(source.read_bytes())  # type: ignore[assignment]
             if source_hash[:8] == hash:
                 trace("_read_pyc(%s): source hash match (no change detected)" % source)
