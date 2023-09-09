@@ -12,7 +12,6 @@ import zipfile
 from functools import partial
 from importlib.util import source_hash
 from pathlib import Path
-from time import sleep
 from typing import cast
 from typing import Dict
 from typing import Generator
@@ -1127,8 +1126,8 @@ class TestAssertionRewriteHookDetails:
 
         # pyc read should still work if only the mtime changed
         # Fallback to hash comparison
-        sleep(0.1)
-        fn.touch()
+        new_mtime = source_stat.st_mtime + 1.2
+        os.utime(fn, (new_mtime, new_mtime))
         assert source_stat.st_mtime != os.stat(fn).st_mtime
         assert _read_pyc(fn, pyc, state.trace) is not None
 
