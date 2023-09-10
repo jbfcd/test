@@ -83,6 +83,7 @@ class AssertionState:
     def __init__(self, config: Config, mode) -> None:
         self.mode = mode
         self.trace = config.trace.root.get("assertion")
+        self.invalidation_mode = config.option.invalidationmode
         self.hook: Optional[rewrite.AssertionRewritingHook] = None
 
 
