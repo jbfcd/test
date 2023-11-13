@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import warnings
 from functools import cached_property
@@ -8,16 +10,11 @@ from typing import Callable
 from typing import cast
 from typing import Iterable
 from typing import Iterator
-from typing import List
 from typing import MutableMapping
 from typing import Optional
 from typing import overload
-from typing import Set
-from typing import Tuple
-from typing import Type
 from typing import TYPE_CHECKING
 from typing import TypeVar
-from typing import Union
 
 import pluggy
 
@@ -71,7 +68,7 @@ def iterparentnodeids(nodeid: str) -> Iterator[str]:
     Note that / components are only considered until the first ::.
     """
     pos = 0
-    first_colons: Optional[int] = nodeid.find("::")
+    first_colons: int | None = nodeid.find("::")
     if first_colons == -1:
         first_colons = None
     # The root Session node - always present.
@@ -98,9 +95,9 @@ def iterparentnodeids(nodeid: str) -> Iterator[str]:
 
 
 def _imply_path(
-    node_type: Type["Node"],
-    path: Optional[Path],
-    fspath: Optional[LEGACY_PATH],
+    node_type: type[Node],
+    path: Path | None,
+    fspath: LEGACY_PATH | None,
 ) -> Path:
     if fspath is not None:
         warnings.warn(
@@ -196,12 +193,12 @@ class Node(metaclass=NodeMeta):
     def __init__(
         self,
         name: str,
-        parent: "Optional[Node]" = None,
-        config: Optional[Config] = None,
-        session: "Optional[Session]" = None,
-        fspath: Optional[LEGACY_PATH] = None,
-        path: Optional[Path] = None,
-        nodeid: Optional[str] = None,
+        parent: Node | None = None,
+        config: Config | None = None,
+        session: Session | None = None,
+        fspath: LEGACY_PATH | None = None,
+        path: Path | None = None,
+        nodeid: str | None = None,
     ) -> None:
         #: A unique name within the scope of the parent node.
         self.name: str = name
@@ -235,10 +232,10 @@ class Node(metaclass=NodeMeta):
         self.keywords: MutableMapping[str, Any] = NodeKeywords(self)
 
         #: The marker objects belonging to this node.
-        self.own_markers: List[Mark] = []
+        self.own_markers: list[Mark] = []
 
         #: Allow adding of extra keywords to use for matching.
-        self.extra_keyword_matches: Set[str] = set()
+        self.extra_keyword_matches: set[str] = set()
 
         if nodeid is not None:
             assert "::()" not in nodeid
@@ -255,7 +252,7 @@ class Node(metaclass=NodeMeta):
         self._store = self.stash
 
     @classmethod
-    def from_parent(cls, parent: "Node", **kw):
+    def from_parent(cls, parent: Node, **kw):
         """Public constructor for Nodes.
 
         This indirection got introduced in order to enable removing
@@ -333,23 +330,21 @@ class Node(metaclass=NodeMeta):
     def teardown(self) -> None:
         pass
 
-    def listchain(self) -> List["Node"]:
+    def listchain(self) -> list[Node]:
         """Return list of all parent collectors up to self, starting from
         the root of collection tree.
 
         :returns: The nodes.
         """
         chain = []
-        item: Optional[Node] = self
+        item: Node | None = self
         while item is not None:
             chain.append(item)
             item = item.parent
         chain.reverse()
         return chain
 
-    def add_marker(
-        self, marker: Union[str, MarkDecorator], append: bool = True
-    ) -> None:
+    def add_marker(self, marker: str | MarkDecorator, append: bool = True) -> None:
         """Dynamically add a marker object to the node.
 
         :param marker:
@@ -371,7 +366,7 @@ class Node(metaclass=NodeMeta):
         else:
             self.own_markers.insert(0, marker_.mark)
 
-    def iter_markers(self, name: Optional[str] = None) -> Iterator[Mark]:
+    def iter_markers(self, name: str | None = None) -> Iterator[Mark]:
         """Iterate over all markers of the node.
 
         :param name: If given, filter the results by the name attribute.
@@ -380,8 +375,8 @@ class Node(metaclass=NodeMeta):
         return (x[1] for x in self.iter_markers_with_node(name=name))
 
     def iter_markers_with_node(
-        self, name: Optional[str] = None
-    ) -> Iterator[Tuple["Node", Mark]]:
+        self, name: str | None = None
+    ) -> Iterator[tuple[Node, Mark]]:
         """Iterate over all markers of the node.
 
         :param name: If given, filter the results by the name attribute.
@@ -393,16 +388,14 @@ class Node(metaclass=NodeMeta):
                     yield node, mark
 
     @overload
-    def get_closest_marker(self, name: str) -> Optional[Mark]:
+    def get_closest_marker(self, name: str) -> Mark | None:
         ...
 
     @overload
     def get_closest_marker(self, name: str, default: Mark) -> Mark:
         ...
 
-    def get_closest_marker(
-        self, name: str, default: Optional[Mark] = None
-    ) -> Optional[Mark]:
+    def get_closest_marker(self, name: str, default: Mark | None = None) -> Mark | None:
         """Return the first marker matching the name, from closest (for
         example function) to farther level (for example module level).
 
@@ -411,14 +404,14 @@ class Node(metaclass=NodeMeta):
         """
         return next(self.iter_markers(name=name), default)
 
-    def listextrakeywords(self) -> Set[str]:
+    def listextrakeywords(self) -> set[str]:
         """Return a set of all extra keywords in self and any parents."""
-        extra_keywords: Set[str] = set()
+        extra_keywords: set[str] = set()
         for item in self.listchain():
             extra_keywords.update(item.extra_keyword_matches)
         return extra_keywords
 
-    def listnames(self) -> List[str]:
+    def listnames(self) -> list[str]:
         return [x.name for x in self.listchain()]
 
     def addfinalizer(self, fin: Callable[[], object]) -> None:
@@ -430,14 +423,14 @@ class Node(metaclass=NodeMeta):
         """
         self.session._setupstate.addfinalizer(fin, self)
 
-    def getparent(self, cls: Type[_NodeType]) -> Optional[_NodeType]:
+    def getparent(self, cls: type[_NodeType]) -> _NodeType | None:
         """Get the next parent node (including self) which is an instance of
         the given class.
 
         :param cls: The node class to search for.
         :returns: The node, if found.
         """
-        current: Optional[Node] = self
+        current: Node | None = self
         while current and not isinstance(current, cls):
             current = current.parent
         assert current is None or isinstance(current, cls)
@@ -449,7 +442,7 @@ class Node(metaclass=NodeMeta):
     def _repr_failure_py(
         self,
         excinfo: ExceptionInfo[BaseException],
-        style: "Optional[_TracebackStyle]" = None,
+        style: _TracebackStyle | None = None,
     ) -> TerminalRepr:
         from _pytest.fixtures import FixtureLookupError
 
@@ -461,7 +454,7 @@ class Node(metaclass=NodeMeta):
         if isinstance(excinfo.value, FixtureLookupError):
             return excinfo.value.formatrepr()
 
-        tbfilter: Union[bool, Callable[[ExceptionInfo[BaseException]], Traceback]]
+        tbfilter: bool | Callable[[ExceptionInfo[BaseException]], Traceback]
         if self.config.getoption("fulltrace", False):
             style = "long"
             tbfilter = False
@@ -504,8 +497,8 @@ class Node(metaclass=NodeMeta):
     def repr_failure(
         self,
         excinfo: ExceptionInfo[BaseException],
-        style: "Optional[_TracebackStyle]" = None,
-    ) -> Union[str, TerminalRepr]:
+        style: _TracebackStyle | None = None,
+    ) -> str | TerminalRepr:
         """Return a representation of a collection or test failure.
 
         .. seealso:: :ref:`non-python tests`
@@ -515,7 +508,7 @@ class Node(metaclass=NodeMeta):
         return self._repr_failure_py(excinfo, style)
 
 
-def get_fslocation_from_item(node: "Node") -> Tuple[Union[str, Path], Optional[int]]:
+def get_fslocation_from_item(node: Node) -> tuple[str | Path, int | None]:
     """Try to extract the actual location from a node, depending on available attributes:
 
     * "location": a pair (path, lineno)
@@ -525,7 +518,7 @@ def get_fslocation_from_item(node: "Node") -> Tuple[Union[str, Path], Optional[i
     :rtype: A tuple of (str|Path, int) with filename and 0-based line number.
     """
     # See Item.location.
-    location: Optional[Tuple[str, Optional[int], str]] = getattr(node, "location", None)
+    location: tuple[str, int | None, str] | None = getattr(node, "location", None)
     if location is not None:
         return location[:2]
     obj = getattr(node, "obj", None)
@@ -544,14 +537,14 @@ class Collector(Node):
     class CollectError(Exception):
         """An error during collection, contains a custom message."""
 
-    def collect(self) -> Iterable[Union["Item", "Collector"]]:
+    def collect(self) -> Iterable[Item | Collector]:
         """Collect children (items and collectors) for this collector."""
         raise NotImplementedError("abstract")
 
     # TODO: This omits the style= parameter which breaks Liskov Substitution.
     def repr_failure(  # type: ignore[override]
         self, excinfo: ExceptionInfo[BaseException]
-    ) -> Union[str, TerminalRepr]:
+    ) -> str | TerminalRepr:
         """Return a representation of a collection failure.
 
         :param excinfo: Exception information for the failure.
@@ -580,7 +573,7 @@ class Collector(Node):
         return excinfo.traceback
 
 
-def _check_initialpaths_for_relpath(session: "Session", path: Path) -> Optional[str]:
+def _check_initialpaths_for_relpath(session: Session, path: Path) -> str | None:
     for initial_path in session._initialpaths:
         if commonpath(path, initial_path) == initial_path:
             rel = str(path.relative_to(initial_path))
@@ -593,14 +586,14 @@ class FSCollector(Collector):
 
     def __init__(
         self,
-        fspath: Optional[LEGACY_PATH] = None,
-        path_or_parent: Optional[Union[Path, Node]] = None,
-        path: Optional[Path] = None,
-        name: Optional[str] = None,
-        parent: Optional[Node] = None,
-        config: Optional[Config] = None,
-        session: Optional["Session"] = None,
-        nodeid: Optional[str] = None,
+        fspath: LEGACY_PATH | None = None,
+        path_or_parent: Path | Node | None = None,
+        path: Path | None = None,
+        name: str | None = None,
+        parent: Node | None = None,
+        config: Config | None = None,
+        session: Session | None = None,
+        nodeid: str | None = None,
     ) -> None:
         if path_or_parent:
             if isinstance(path_or_parent, Node):
@@ -650,18 +643,18 @@ class FSCollector(Collector):
         cls,
         parent,
         *,
-        fspath: Optional[LEGACY_PATH] = None,
-        path: Optional[Path] = None,
+        fspath: LEGACY_PATH | None = None,
+        path: Path | None = None,
         **kw,
     ):
         """The public constructor."""
         return super().from_parent(parent=parent, fspath=fspath, path=path, **kw)
 
-    def gethookproxy(self, fspath: "os.PathLike[str]"):
+    def gethookproxy(self, fspath: os.PathLike[str]):
         warnings.warn(FSCOLLECTOR_GETHOOKPROXY_ISINITPATH, stacklevel=2)
         return self.session.gethookproxy(fspath)
 
-    def isinitpath(self, path: Union[str, "os.PathLike[str]"]) -> bool:
+    def isinitpath(self, path: str | os.PathLike[str]) -> bool:
         warnings.warn(FSCOLLECTOR_GETHOOKPROXY_ISINITPATH, stacklevel=2)
         return self.session.isinitpath(path)
 
@@ -685,9 +678,9 @@ class Item(Node):
         self,
         name,
         parent=None,
-        config: Optional[Config] = None,
-        session: Optional["Session"] = None,
-        nodeid: Optional[str] = None,
+        config: Config | None = None,
+        session: Session | None = None,
+        nodeid: str | None = None,
         **kw,
     ) -> None:
         # The first two arguments are intentionally passed positionally,
@@ -702,11 +695,11 @@ class Item(Node):
             nodeid=nodeid,
             **kw,
         )
-        self._report_sections: List[Tuple[str, str, str]] = []
+        self._report_sections: list[tuple[str, str, str]] = []
 
         #: A list of tuples (name, value) that holds user defined properties
         #: for this test.
-        self.user_properties: List[Tuple[str, object]] = []
+        self.user_properties: list[tuple[str, object]] = []
 
         self._check_item_and_collector_diamond_inheritance()
 
@@ -765,7 +758,7 @@ class Item(Node):
         if content:
             self._report_sections.append((when, key, content))
 
-    def reportinfo(self) -> Tuple[Union["os.PathLike[str]", str], Optional[int], str]:
+    def reportinfo(self) -> tuple[os.PathLike[str] | str, int | None, str]:
         """Get location information for this item for test reports.
 
         Returns a tuple with three elements:
@@ -779,7 +772,7 @@ class Item(Node):
         return self.path, None, ""
 
     @cached_property
-    def location(self) -> Tuple[str, Optional[int], str]:
+    def location(self) -> tuple[str, int | None, str]:
         """
         Returns a tuple of ``(relfspath, lineno, testname)`` for this item
         where ``relfspath`` is file path relative to ``config.rootpath``
