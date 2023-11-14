@@ -11,7 +11,6 @@ from typing import cast
 from typing import Iterable
 from typing import Iterator
 from typing import MutableMapping
-from typing import Optional
 from typing import overload
 from typing import TYPE_CHECKING
 from typing import TypeVar
@@ -67,6 +66,7 @@ def iterparentnodeids(nodeid: str) -> Iterator[str]:
 
     Note that / components are only considered until the first ::.
     """
+    # todo: deprecate in favor of directory nodes
     pos = 0
     first_colons: int | None = nodeid.find("::")
     if first_colons == -1:
