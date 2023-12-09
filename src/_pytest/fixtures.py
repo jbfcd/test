@@ -1480,7 +1480,7 @@ class FixtureManager:
         else:
             argnames = ()
         usefixturesnames = self._getusefixturesnames(node)
-        autousenames = self._getautousenames(node.nodeid)
+        autousenames = self._getautousenames(node)
         initialnames = deduplicate_names(autousenames, usefixturesnames, argnames)
 
         direct_parametrize_args = _get_direct_parametrize_args(node)
@@ -1515,9 +1515,10 @@ class FixtureManager:
 
         self.parsefactories(plugin, nodeid)
 
-    def _getautousenames(self, nodeid: str) -> Iterator[str]:
+    def _getautousenames(self, node: nodes.Node) -> Iterator[str]:
         """Return the names of autouse fixtures applicable to nodeid."""
-        for parentnodeid in nodes.iterparentnodeids(nodeid):
+        # todo: reintoduce directory nodes to ensure one node per level
+        for parentnodeid in nodes.iterparentnodeids(node.nodeid):
             basenames = self._nodeid_autousenames.get(parentnodeid)
             if basenames:
                 yield from basenames
