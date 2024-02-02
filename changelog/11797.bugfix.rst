@@ -1,0 +1,1 @@
+Ensure approx for SequenceLike objects doesn't wrap those sequences in a scalar.
